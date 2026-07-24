@@ -4,11 +4,20 @@
 [![docs.rs](https://docs.rs/relentless/badge.svg)](https://docs.rs/relentless)
 [![CI](https://github.com/camercu/relentless/actions/workflows/ci.yml/badge.svg)](https://github.com/camercu/relentless/actions/workflows/ci.yml)
 [![MSRV](https://img.shields.io/badge/MSRV-1.85-blue.svg)](#msrv)
-[![License](https://img.shields.io/crates/l/relentless.svg)](LICENSE-MIT)
+[![License](https://img.shields.io/crates/l/relentless.svg)](#license)
 
 Retry and polling for Rust — with composable strategies, policy reuse, and
 first-class support for polling workflows where `Ok(_)` doesn't always mean
 "done."
+
+```rust,no_run
+use relentless::RetryExt;
+
+// Retry any `Err` with exponential backoff — three attempts by default.
+let body = (|| reqwest::blocking::get("https://api.example.com/data")?.text())
+    .retry()
+    .call();
+```
 
 Most retry libraries handle the simple case well: call a function, retry on
 error, back off. `relentless` handles that too, but its core idea goes further:
@@ -17,12 +26,11 @@ attempt is sorted into *return it*, *retry it*, or *abort* — so the retry
 decision is independent of `Result` semantics. That unlocks the cases other
 libraries make awkward:
 
-- **Polling**, where `Ok("pending")` means "keep going" and you reach for
-  `.until(predicate::ok(...))` rather than just retrying errors.
-- **Outcome classification**, where `.decide(...)` sorts each outcome into
-  return / retry / abort — so a sought-after `Err`, a non-`Result` poll enum, or
-  a search state can drive the loop directly, and a probe can deliver the failure
-  it was hunting for as an ordinary `Ok`.
+- **Classification, not just error-retry**, where each outcome is sorted into
+  *return / retry / abort* — so polling (`Ok("pending")` means "keep going"), a
+  sought-after `Err`, a non-`Result` poll enum, or a search state can drive the
+  loop directly. See the [classifier](#the-classifier-when--until--decide)
+  section below.
 - **Policy reuse**, where a single `RetryPolicy` captures your retry rules and
   gets shared across multiple call sites — no duplicated builder chains.
 - **Strategy composition**, where `wait::fixed(50ms) + wait::exponential(100ms)`
@@ -45,9 +53,7 @@ directly from a function or closure).
 cargo add relentless
 ```
 
-Sync `std` builds default to `clock::SystemClock` (wall time +
-`std::thread::sleep`), so the sync examples below omit `.clock(...)`. Async
-retries and `no_std` builds inject an explicit clock adapter, gated behind a
+Async retries and `no_std` builds inject an explicit clock adapter, gated behind a
 feature flag (`tokio-clock`, `embassy-clock`, `gloo-timers-clock`,
 `futures-timer-clock`); see the [feature-flag
 reference](https://docs.rs/relentless/latest/relentless/#feature-flags) for the
@@ -78,6 +84,9 @@ For full docs, see <https://docs.rs/relentless>. Behavior spec:
 [docs/SPEC.md](./docs/SPEC.md). Runnable examples live in
 [`examples/`](./examples).
 
+Sync `std` builds default to `clock::SystemClock` (wall time +
+`std::thread::sleep`), so the sync examples below omit `.clock(...)`.
+
 ### 1) Retry with defaults
 
 The `.retry()` extension trait is the fastest way to add retries. Defaults: 3
@@ -90,7 +99,7 @@ fn fetch_job_output() -> Result<String, std::io::Error> {
     std::fs::read_to_string("/var/run/background_job.output")
 }
 
-let results = fetch_job_output.retry().call();
+let _output = fetch_job_output.retry().call();
 ```
 
 ### 2) Customized retry
@@ -125,16 +134,15 @@ Unlike `.when()`, which retries on matching outcomes, `.until()` retries on
 everything *except* the matching outcome.
 
 ```rust,no_run
-use relentless::{RetryPolicy, predicate};
+use relentless::{retry, predicate};
 
 #[derive(Debug, PartialEq)]
 enum Status { Pending, Done }
 
 fn poll_status() -> Result<Status, std::io::Error> { todo!() }
 
-let result = RetryPolicy::new()
+let result = retry(|_| poll_status())
     .until(predicate::ok(|s: &Status| *s == Status::Done))
-    .retry(|_| poll_status())
     .call();
 ```
 
@@ -169,8 +177,9 @@ let report = retry(|_| poll_job())
     })
     .stop(stop::attempts(20))
     .call();
-// `report` is `Result<String, RetryError<String, Result<Job, io::Error>>>`:
-// `Ok(report)` on Done, `Err(Aborted { last: why })` on Failed.
+// `report`: `Result<String, RetryError<String, Result<Job, std::io::Error>>>`
+// (type is inference-derived). A job stuck at `Pending` exhausts after 20
+// attempts as `Err(Exhausted { last: Ok(Job::Pending) })`.
 ```
 
 The same lever powers an *inverted probe* — retry until an error appears, then
@@ -239,7 +248,7 @@ On failure it returns a `RetryError` with two variants:
 ```rust,no_run
 use relentless::{retry, RetryError};
 
-match retry(|_| Err::<(), _>("boom")).call() {
+match retry(|_| Err::<(), _>("timeout")).call() {
     Ok(val) => println!("success: {val:?}"),
     Err(RetryError::Exhausted { last }) => println!("gave up: {last:?}"),
     // Aborts only arise on the `.when`/`.until`/`.decide` path, not the default.
@@ -282,8 +291,8 @@ with runnable versions in [`examples/`](./examples):
 The full API surface — every strategy, predicate, and type — lives on
 [docs.rs](https://docs.rs/relentless). Two things worth knowing up front:
 
-**Reading order.** Chains read best as **when/until/decide** -> **wait** ->
-**stop** -> clock -> hooks -> stats -> call. That is a convention, not a compiler
+**Reading order.** Chains read best as **when/until/decide** → **wait** →
+**stop** → clock → hooks → stats → call. That is a convention, not a compiler
 contract: the types enforce only two structural rules — `.with_stats()` is
 terminal, so configure everything before it, and an async chain must set
 `.clock(...)` before it can be awaited (the default clock is synchronous). Order
