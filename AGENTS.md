@@ -9,6 +9,26 @@ For developer workflow and tool setup, follow
 [CONTRIBUTING.md](/CONTRIBUTING.md). Treat it as the source of truth for the
 pinned shell environment, setup script, Git hooks, and `just`-based CI workflow.
 
+## Version control (jj)
+
+Repo uses colocated Jujutsu — `.jj/` beside `.git/`. Do VCS work with `jj`; git
+still works underneath (colocated), remotes + CI unaffected.
+
+Global git principles hold, applied via jj:
+
+- Trunk-based. Work on `main`. No feature branches.
+- Conventional-commit messages via `jj describe` / `jj commit`.
+- Each logical change = own commit. `jj split` / `jj absorb` carve a batched
+  working copy into per-change commits after the fact — no need to commit
+  perfectly as you go.
+- Push only on user confirmation. Use `jj push` (aliased: runs `just pre-commit`
+  then `jj git push`), never bare `jj git push`.
+
+jj does NOT fire git hooks (fmt-check, commitlint). So the local guard is manual:
+`just pre-commit` before push (the `jj push` alias does this); CI is the real
+enforcement. Format changed lines with `jj fix` (rustfmt + taplo). Inspect with
+`jj st` / `jj log` / `jj diff`; reverse any jj op with `jj undo`.
+
 ## Repository context map
 
 Use this section when you need fast architectural context before reviewing or
