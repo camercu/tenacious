@@ -898,11 +898,11 @@ pub relentless::RetryError::Aborted::last: A
 pub relentless::RetryError::Exhausted
 pub relentless::RetryError::Exhausted::last: O
 impl<A, O> relentless::RetryError<A, O>
+pub fn relentless::RetryError<A, O>::into_last(self) -> core::option::Option<O>
+pub fn relentless::RetryError<A, O>::last(&self) -> core::option::Option<&O>
 pub fn relentless::RetryError<A, O>::stop_reason(&self) -> relentless::StopReason
 impl<T, E> relentless::RetryError<E, core::result::Result<T, E>>
-pub fn relentless::RetryError<E, core::result::Result<T, E>>::into_last(self) -> core::option::Option<core::result::Result<T, E>>
 pub fn relentless::RetryError<E, core::result::Result<T, E>>::into_last_error(self) -> core::option::Option<E>
-pub fn relentless::RetryError<E, core::result::Result<T, E>>::last(&self) -> core::option::Option<&core::result::Result<T, E>>
 pub fn relentless::RetryError<E, core::result::Result<T, E>>::last_error(&self) -> core::option::Option<&E>
 impl<A, O> core::marker::StructuralPartialEq for relentless::RetryError<A, O>
 impl<A: core::clone::Clone, O: core::clone::Clone> core::clone::Clone for relentless::RetryError<A, O>

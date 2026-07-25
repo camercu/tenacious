@@ -15,10 +15,12 @@ use core::fmt;
 /// - `A`: the abort payload (what the classifier projects on `Abort`).
 /// - `O`: the whole outcome the operation produces.
 ///
-/// On the default and `.when`/`.until` paths — where the outcome is
-/// `Result<T, E>` and aborts carry the bare error — this is
-/// `RetryError<E, Result<T, E>>`, and the `Result`-shaped helpers below
-/// (`last`, `last_error`, `Display`, `Error`) apply.
+/// [`last`](Self::last) and [`into_last`](Self::into_last) are
+/// outcome-agnostic and available for every shape (including `Option` and a
+/// self-classifying [`Outcome`](crate::Outcome)). On the default and
+/// `.when`/`.until` paths — where the outcome is `Result<T, E>` and aborts
+/// carry the bare error — this is `RetryError<E, Result<T, E>>`, and the
+/// `Result`-shaped helpers below (`last_error`, `Display`, `Error`) also apply.
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum RetryError<A, O> {
@@ -47,17 +49,15 @@ impl<A, O> RetryError<A, O> {
             RetryError::Exhausted { .. } => StopReason::Exhausted,
         }
     }
-}
 
-/// `Result`-shaped helpers, available on the default / `.when` / `.until` path
-/// where the outcome is `Result<T, E>` and aborts carry the bare error.
-impl<T, E> RetryError<E, Result<T, E>> {
     /// Returns the final attempt outcome, if one is retained.
     ///
     /// `Some` for `Exhausted`; `None` for `Aborted` (which stores only the
-    /// bare error — see [`last_error`](Self::last_error)).
+    /// projected abort payload — see [`last_error`](Self::last_error) on the
+    /// `Result` shape). Outcome-agnostic: available for every outcome type,
+    /// including `Option` and a self-classifying [`Outcome`](crate::Outcome).
     #[must_use]
-    pub fn last(&self) -> Option<&Result<T, E>> {
+    pub fn last(&self) -> Option<&O> {
         match self {
             RetryError::Exhausted { last } => Some(last),
             RetryError::Aborted { .. } => None,
@@ -66,13 +66,17 @@ impl<T, E> RetryError<E, Result<T, E>> {
 
     /// Consumes the error and returns the final attempt outcome, if retained.
     #[must_use]
-    pub fn into_last(self) -> Option<Result<T, E>> {
+    pub fn into_last(self) -> Option<O> {
         match self {
             RetryError::Exhausted { last } => Some(last),
             RetryError::Aborted { .. } => None,
         }
     }
+}
 
+/// `Result`-shaped helpers, available on the default / `.when` / `.until` path
+/// where the outcome is `Result<T, E>` and aborts carry the bare error.
+impl<T, E> RetryError<E, Result<T, E>> {
     /// Returns the last error value when the terminal outcome carried `Err(E)`.
     ///
     /// `Some` for `Aborted`, and for `Exhausted` when the last outcome was
@@ -144,6 +148,17 @@ mod tests {
         let aborted: Err = RetryError::Aborted { last: "boom" };
         assert_eq!(exhausted.last(), Some(&Ok(3)));
         assert_eq!(aborted.last(), None);
+    }
+
+    #[test]
+    fn last_is_available_for_non_result_outcomes() {
+        // An `Option`-outcome op (or any custom `Outcome`) produces this error
+        // shape; `last`/`into_last` are outcome-agnostic and must work on it,
+        // not only on the `Result` shape.
+        type OptErr = RetryError<core::convert::Infallible, Option<i32>>;
+        let exhausted: OptErr = RetryError::Exhausted { last: None };
+        assert_eq!(exhausted.last(), Some(&None));
+        assert_eq!(exhausted.into_last(), Some(None));
     }
 
     #[test]
