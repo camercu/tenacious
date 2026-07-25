@@ -163,6 +163,11 @@ fn read_pidfile() -> Option<u32> { todo!() }
 let pid = retry(|_| read_pidfile()).call(); // Result<u32, RetryError<Infallible, Option<u32>>>
 ```
 
+> **Note:** the same signature caveat applies — the op needs a concrete
+> `Option<T>` (here from `read_pidfile`'s return type). A bare
+> `retry(|_| None)` leaves `T` unpinned (`E0282`); give the op a signature or
+> annotate the `None`.
+
 ### 4) Classify a custom outcome (all three verdicts)
 
 When an outcome has more than two meanings, `.decide(...)` sorts it directly.
@@ -271,7 +276,11 @@ match retry(|_| Err::<(), _>("timeout")).call() {
 ```
 
 `RetryError` is `Result`-shaped by default, so it implements `Display` and
-`std::error::Error` (with the terminal error as its `source`) on that path.
+`std::error::Error` (with the terminal error as its `source`) on that path. The
+`Option` poll error `RetryError<Infallible, Option<T>>` also implements both
+(`Display` renders `"retries exhausted"`; `Error` has no `source`), so a poll's
+error can `?`-propagate just like a `Result`'s. `last()` / `into_last()` and
+`stop_reason()` are outcome-agnostic — they work on every shape.
 
 ## More
 
