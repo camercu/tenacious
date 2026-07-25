@@ -112,6 +112,25 @@ fn option_outcome_all_none_exhausts_carrying_none() {
     assert_eq!(result, Err(RetryError::Exhausted { last: None }));
 }
 
+#[test]
+fn option_op_decide_override_projects_a_custom_verdict() {
+    // The default classifier is not the only path for an `Option` op: `.decide`
+    // composes with it, and a non-`Infallible` abort type flows through. Here a
+    // sentinel `Some(0)` is treated as fatal rather than as success.
+    let result = retry(|_| Some(0_i32))
+        .decide(|outcome: Option<i32>| match outcome {
+            Some(0) => relentless::Verdict::Abort("sentinel"),
+            Some(v) => relentless::Verdict::Return(v),
+            None => relentless::Verdict::Retry(None),
+        })
+        .stop(stop::attempts(MAX_ATTEMPTS))
+        .wait(wait::fixed(WAIT_DURATION))
+        .clock(VirtualClock::new())
+        .call();
+
+    assert_eq!(result, Err(RetryError::Aborted { last: "sentinel" }));
+}
+
 #[allow(clippy::unnecessary_wraps)]
 fn do_work() -> Result<i32, &'static str> {
     Ok(SUCCESS_VALUE)
@@ -632,6 +651,48 @@ mod async_tests {
             .with_stats();
         let debug = format!("{builder:?}");
         assert!(debug.contains("AsyncRetryWithStats"));
+    }
+
+    // The `Option` classifier lives in the shared `step` core both drivers call,
+    // so sync/async drift is structurally impossible — but the CLAUDE.md lockstep
+    // mandate wants it guarded, not assumed. These mirror the sync `option_*`
+    // tests through the async driver.
+    #[test]
+    fn async_option_outcome_retries_through_none_then_returns_some() {
+        let attempts = Rc::new(Cell::new(0_u32));
+        let attempts_ref = Rc::clone(&attempts);
+
+        let future = (move || {
+            attempts_ref.set(attempts_ref.get().saturating_add(1));
+            ready((attempts_ref.get() >= MAX_ATTEMPTS).then_some(SUCCESS_VALUE))
+        })
+        .retry_async()
+        .stop(stop::attempts(MAX_ATTEMPTS))
+        .wait(wait::fixed(Duration::from_millis(1)))
+        .clock(ReadyClock)
+        .call();
+
+        let result = block_on(future);
+        assert_eq!(result, Ok(SUCCESS_VALUE));
+        assert_eq!(attempts.get(), MAX_ATTEMPTS);
+    }
+
+    #[test]
+    fn async_option_outcome_all_none_exhausts_carrying_none() {
+        let future = (|| ready(None::<i32>))
+            .retry_async()
+            .stop(stop::attempts(MAX_ATTEMPTS))
+            .wait(wait::fixed(Duration::from_millis(1)))
+            .clock(ReadyClock)
+            .call();
+
+        let err = block_on(future).unwrap_err();
+        assert_eq!(err, RetryError::Exhausted { last: None });
+        // The engine-produced Option error — not just a hand-built value — is
+        // Display-able and carries the last outcome (exercises the S2 impls end
+        // to end).
+        assert_eq!(err.to_string(), "retries exhausted");
+        assert_eq!(err.into_last(), Some(None));
     }
 }
 
