@@ -1260,6 +1260,10 @@ impl<T, E> relentless::Outcome for core::result::Result<T, E>
 pub type core::result::Result<T, E>::Abort = E
 pub type core::result::Result<T, E>::Return = T
 pub fn core::result::Result<T, E>::classify(self) -> relentless::Verdict<T, E, core::result::Result<T, E>>
+impl<T> relentless::Outcome for core::option::Option<T>
+pub type core::option::Option<T>::Abort = core::convert::Infallible
+pub type core::option::Option<T>::Return = T
+pub fn core::option::Option<T>::classify(self) -> relentless::Verdict<T, core::convert::Infallible, core::option::Option<T>>
 pub trait relentless::Predicate<T, E>
 pub fn relentless::Predicate::should_retry(&self, outcome: &core::result::Result<T, E>) -> bool
 impl<T, E, F> relentless::predicate::Predicate<T, E> for F where F: core::ops::function::Fn(&core::result::Result<T, E>) -> bool

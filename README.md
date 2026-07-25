@@ -151,6 +151,18 @@ let result = retry(|_| poll_status())
 > Give the op a signature — as `poll_status` does above — or annotate it inline,
 > e.g. `.retry(|_| Ok::<_, std::io::Error>(Status::Done))`.
 
+When the probe is a plain two-state "ready yet?" with no error to carry, return
+`Option` and skip the predicate entirely — `Option` classifies itself, so `None`
+retries and `Some(v)` delivers `v`:
+
+```rust,no_run
+use relentless::retry;
+
+fn read_pidfile() -> Option<u32> { todo!() }
+
+let pid = retry(|_| read_pidfile()).call(); // Result<u32, RetryError<Infallible, Option<u32>>>
+```
+
 ### 4) Classify a custom outcome (all three verdicts)
 
 When an outcome has more than two meanings, `.decide(...)` sorts it directly.

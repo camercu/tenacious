@@ -79,6 +79,39 @@ fn retry_ext_closure_form_retries_until_success() {
     assert_eq!(attempts.get(), MAX_ATTEMPTS);
 }
 
+#[test]
+fn option_outcome_retries_through_none_then_returns_some() {
+    let attempts = Rc::new(Cell::new(0_u32));
+    let attempts_ref = Rc::clone(&attempts);
+
+    // An `Option`-returning op drives the default classifier with no `.decide`:
+    // `None` retries, `Some(v)` delivers `v`.
+    let result = retry(move |_| {
+        attempts_ref.set(attempts_ref.get().saturating_add(1));
+        (attempts_ref.get() >= MAX_ATTEMPTS).then_some(SUCCESS_VALUE)
+    })
+    .stop(stop::attempts(MAX_ATTEMPTS))
+    .wait(wait::fixed(WAIT_DURATION))
+    .clock(VirtualClock::new())
+    .call();
+
+    assert_eq!(result, Ok(SUCCESS_VALUE));
+    assert_eq!(attempts.get(), MAX_ATTEMPTS);
+}
+
+#[test]
+fn option_outcome_all_none_exhausts_carrying_none() {
+    // No `Some` ever arrives, so the loop exhausts its stop strategy; the last
+    // outcome carried out is `None` (Option's abort type is `Infallible`).
+    let result = retry(|_| None::<i32>)
+        .stop(stop::attempts(MAX_ATTEMPTS))
+        .wait(wait::fixed(WAIT_DURATION))
+        .clock(VirtualClock::new())
+        .call();
+
+    assert_eq!(result, Err(RetryError::Exhausted { last: None }));
+}
+
 #[allow(clippy::unnecessary_wraps)]
 fn do_work() -> Result<i32, &'static str> {
     Ok(SUCCESS_VALUE)

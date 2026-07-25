@@ -299,9 +299,12 @@ pub trait Outcome { type Return; type Abort; fn classify(self) -> Verdict<..>; }
 
 - **3.4.2** A blanket `impl<T, E> Outcome for Result<T, E>` is the default path:
   `Ok(v)` → `Return(v)`, any `Err` → `Retry` (`Abort = E`, never produced on the
-  default path). A type you own may implement `Outcome` to classify itself with
-  no `.decide` at the call site. The orphan rule reserves `Result` for the
-  blanket impl; use `.decide` or a newtype for custom `Result` classification.
+  default path). A blanket `impl<T> Outcome for Option<T>` covers the canonical
+  two-state poll: `Some(v)` → `Return(v)`, `None` → `Retry` (`Abort =
+  Infallible`, so exhaustion yields `RetryError::Exhausted { last: None }`). A
+  type you own may implement `Outcome` to classify itself with no `.decide` at
+  the call site. The orphan rule reserves `Result` and `Option` for their
+  blanket impls; use `.decide` or a newtype for custom classification.
 
 **Installing a classifier.** The classifier slot is set by, in last-wins order:
 
