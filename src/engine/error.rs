@@ -1,6 +1,7 @@
 //! The classifier engine's error type.
 
 use super::state::StopReason;
+use core::convert::Infallible;
 use core::fmt;
 
 /// Error returned when the retry loop terminates without a `Return`.
@@ -128,6 +129,27 @@ where
     }
 }
 
+/// `Option`-shaped `Display`, for the canonical two-state poll.
+///
+/// An `Option` outcome's abort type is [`Infallible`], so `Aborted` is
+/// uninhabited and the only reachable terminus is `Exhausted` — a `None` that
+/// never became `Some`. There is no error payload to report, hence no outcome
+/// detail in the message (contrast the `Result` impl's `"retries exhausted:
+/// {error}"`).
+impl<T> fmt::Display for RetryError<Infallible, Option<T>> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            RetryError::Aborted { last } => match *last {},
+            RetryError::Exhausted { .. } => f.write_str("retries exhausted"),
+        }
+    }
+}
+
+/// `Option`-shaped `Error`. There is no underlying cause — the abort arm is
+/// uninhabited and an exhausted `None` carries no error — so `source` is `None`.
+#[cfg(feature = "std")]
+impl<T: fmt::Debug> std::error::Error for RetryError<Infallible, Option<T>> {}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -179,5 +201,23 @@ mod tests {
         let exhausted: Err = RetryError::Exhausted { last: Err("net") };
         assert_eq!(aborted.to_string(), "aborted: boom");
         assert_eq!(exhausted.to_string(), "retries exhausted: net");
+    }
+
+    #[cfg(feature = "alloc")]
+    #[test]
+    fn option_error_display_reports_exhaustion() {
+        use alloc::string::ToString;
+        // Option's only reachable terminal error is exhaustion (abort is
+        // `Infallible`), so the message needs no outcome detail.
+        let exhausted: RetryError<Infallible, Option<i32>> = RetryError::Exhausted { last: None };
+        assert_eq!(exhausted.to_string(), "retries exhausted");
+    }
+
+    #[cfg(feature = "std")]
+    #[test]
+    fn option_error_is_a_std_error_with_no_source() {
+        let exhausted: RetryError<Infallible, Option<i32>> = RetryError::Exhausted { last: None };
+        let err: &dyn std::error::Error = &exhausted;
+        assert!(err.source().is_none());
     }
 }

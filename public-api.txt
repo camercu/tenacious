@@ -916,6 +916,9 @@ impl<T, E: core::fmt::Display> core::fmt::Display for relentless::RetryError<E, 
 pub fn relentless::RetryError<E, core::result::Result<T, E>>::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
 impl<T, E> core::error::Error for relentless::RetryError<E, core::result::Result<T, E>> where E: core::error::Error + 'static, T: core::fmt::Debug + 'static
 pub fn relentless::RetryError<E, core::result::Result<T, E>>::source(&self) -> core::option::Option<&(dyn core::error::Error + 'static)>
+impl<T: core::fmt::Debug> core::error::Error for relentless::RetryError<core::convert::Infallible, core::option::Option<T>>
+impl<T> core::fmt::Display for relentless::RetryError<core::convert::Infallible, core::option::Option<T>>
+pub fn relentless::RetryError<core::convert::Infallible, core::option::Option<T>>::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
 impl<A, O> core::marker::Freeze for relentless::RetryError<A, O> where A: core::marker::Freeze, O: core::marker::Freeze
 impl<A, O> core::marker::Send for relentless::RetryError<A, O> where A: core::marker::Send, O: core::marker::Send
 impl<A, O> core::marker::Sync for relentless::RetryError<A, O> where A: core::marker::Sync, O: core::marker::Sync
