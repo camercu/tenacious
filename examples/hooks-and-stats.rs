@@ -1,6 +1,10 @@
+//! Observing the retry lifecycle: an `.after_attempt` hook for per-attempt
+//! logging, and `.with_stats()` for a summary (`RetryStats`) after the loop ends.
+//!
+//! Run: `cargo run --example hooks-and-stats`
 use core::time::Duration;
 use relentless::clock::VirtualClock;
-use relentless::{RetryError, RetryExt, predicate, stop, wait};
+use relentless::{AttemptState, RetryError, RetryExt, stop, wait};
 
 fn main() {
     // Represents a remote health check that is permanently unavailable.
@@ -13,8 +17,9 @@ fn main() {
         .retry()
         .stop(stop::attempts(3))
         .wait(wait::fixed(Duration::from_millis(5)))
-        .when(predicate::any_error())
-        .after_attempt(|state: &relentless::AttemptState<Result<(), &str>>| {
+        // No `.when(...)`: the default classifier already retries every `Err`,
+        // so this example stays focused on hooks and stats.
+        .after_attempt(|state: &AttemptState<Result<(), &str>>| {
             if let Err(error) = state.outcome {
                 eprintln!("attempt {} failed: {error}", state.attempt);
             }

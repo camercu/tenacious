@@ -1,3 +1,7 @@
+//! The simplest retry: a transiently-failing closure retried with a fixed
+//! backoff and a cap on the number of attempts.
+//!
+//! Run: `cargo run --example basic-retry`
 use core::cell::Cell;
 use core::time::Duration;
 use relentless::clock::VirtualClock;

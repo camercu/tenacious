@@ -27,8 +27,7 @@
 //! 3. `tokio::select!` with a oneshot channel — ad-hoc signal from a
 //!    spawned task; generalises to `ctrl_c`, broadcast receivers, etc.
 //!
-//! Run with:
-//!   cargo run --example async-cancel --features tokio-clock
+//! Run: `cargo run --example async-cancel --features tokio-clock`
 
 use core::time::Duration;
 use relentless::clock::TokioClock;

@@ -21,8 +21,7 @@
 //!    error is non-retryable and terminates the loop immediately as
 //!    `RetryError::Aborted`.
 //!
-//! Run with:
-//!   cargo run --example sync-cancel
+//! Run: `cargo run --example sync-cancel`
 
 use core::sync::atomic::{AtomicBool, Ordering};
 use core::time::Duration;

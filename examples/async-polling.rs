@@ -1,3 +1,7 @@
+//! Polling an async status endpoint until it reports "ready", using `.until(...)`
+//! to keep retrying while the value is not yet the one you want.
+//!
+//! Run: `cargo run --example async-polling --features tokio-clock`
 use core::cell::Cell;
 use core::time::Duration;
 use relentless::clock::TokioClock;
