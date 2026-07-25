@@ -230,6 +230,13 @@ pub struct PredicateOk<F> {
 /// To make a poll `Err` terminal rather than retried, classify the whole outcome
 /// with [`Retry::decide`](crate::Retry::decide), or use [`result`] when the
 /// decision needs the full `Result<T, E>`.
+///
+/// # Type inference
+///
+/// `ok` constrains only the success type, so an op that never returns a concrete
+/// `Err` leaves the error type unpinned (`E0282`). Give the op a signature — as a
+/// named function does — or annotate it inline, e.g.
+/// `retry(|_| Ok::<_, std::io::Error>(value))`.
 #[must_use]
 pub fn ok<F>(matcher: F) -> PredicateOk<F> {
     PredicateOk { matcher }

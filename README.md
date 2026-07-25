@@ -146,11 +146,6 @@ let result = retry(|_| poll_status())
     .call();
 ```
 
-> **Note:** `predicate::ok` constrains only the success type, so an operation
-> that never returns a concrete `Err` leaves the error type unpinned (`E0282`).
-> Give the op a signature — as `poll_status` does above — or annotate it inline,
-> e.g. `.retry(|_| Ok::<_, std::io::Error>(Status::Done))`.
-
 When the probe is a plain two-state "ready yet?" with no error to carry, return
 `Option` and skip the predicate entirely — `Option` classifies itself, so `None`
 retries and `Some(v)` delivers `v`:
@@ -163,14 +158,14 @@ fn read_pidfile() -> Option<u32> { todo!() }
 let pid = retry(|_| read_pidfile()).call(); // Result<u32, RetryError<Infallible, Option<u32>>>
 ```
 
-> **Note:** the same signature caveat applies — the op needs a concrete
-> `Option<T>` (here from `read_pidfile`'s return type). A bare
-> `retry(|_| None)` leaves `T` unpinned (`E0282`); give the op a signature or
-> annotate the `None`.
-
 `ControlFlow<B, C>` classifies itself the same way when you prefer its naming —
 `Continue(_)` retries, `Break(b)` returns `b`. (Which standard types get this
 treatment, and why others don't, is [ADR-0007](docs/adr/0007-blanket-outcome-impls-for-std-types.md).)
+
+> **Note:** give a self-classifying op a concrete signature, as the examples
+> above do. An op that only ever produces one variant can leave a sibling type
+> parameter unpinned (`E0282`); the API docs for each type spell out which
+> parameters need fixing.
 
 ### 4) Classify a custom outcome (all three verdicts)
 

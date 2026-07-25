@@ -93,6 +93,12 @@ impl<T, E> Outcome for Result<T, E> {
 /// value. There is no fatal outcome, so `Abort` is [`Infallible`]: the loop
 /// terminates only by returning a `Some` or exhausting its stop strategy
 /// (`RetryError::Exhausted { last: None }`).
+///
+/// # Type inference
+///
+/// Pin `T`: an op that only ever produces `None` (e.g. `retry(|_| None)`) leaves
+/// `T` unconstrained (`E0282`). Give the op a concrete signature — as a named
+/// function does — or annotate the `None`.
 impl<T> Outcome for Option<T> {
     type Return = T;
     type Abort = Infallible;
@@ -113,6 +119,14 @@ impl<T> Outcome for Option<T> {
 /// `Option` there is no fatal outcome, so `Abort` is [`Infallible`] and the loop
 /// terminates only by breaking or exhausting its stop strategy
 /// (`RetryError::Exhausted { last: ControlFlow::Continue(..) }`).
+///
+/// # Type inference
+///
+/// `ControlFlow` has two type parameters, so pin both. An op that only ever
+/// produces one variant leaves the other unconstrained (`E0282`):
+/// `retry(|_| ControlFlow::Continue(()))` cannot infer `B`, and
+/// `retry(|_| ControlFlow::Break(1))` cannot infer `C`. Give the op a concrete
+/// signature.
 impl<B, C> Outcome for ControlFlow<B, C> {
     type Return = B;
     type Abort = Infallible;
