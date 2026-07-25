@@ -1259,6 +1259,10 @@ pub trait relentless::Outcome: core::marker::Sized
 pub type relentless::Outcome::Abort
 pub type relentless::Outcome::Return
 pub fn relentless::Outcome::classify(self) -> relentless::Verdict<Self::Return, Self::Abort, Self>
+impl<B, C> relentless::Outcome for core::ops::control_flow::ControlFlow<B, C>
+pub type core::ops::control_flow::ControlFlow<B, C>::Abort = core::convert::Infallible
+pub type core::ops::control_flow::ControlFlow<B, C>::Return = B
+pub fn core::ops::control_flow::ControlFlow<B, C>::classify(self) -> relentless::Verdict<B, core::convert::Infallible, core::ops::control_flow::ControlFlow<B, C>>
 impl<T, E> relentless::Outcome for core::result::Result<T, E>
 pub type core::result::Result<T, E>::Abort = E
 pub type core::result::Result<T, E>::Return = T

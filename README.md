@@ -168,6 +168,10 @@ let pid = retry(|_| read_pidfile()).call(); // Result<u32, RetryError<Infallible
 > `retry(|_| None)` leaves `T` unpinned (`E0282`); give the op a signature or
 > annotate the `None`.
 
+`ControlFlow<B, C>` classifies itself the same way when you prefer its naming —
+`Continue(_)` retries, `Break(b)` returns `b`. (Which standard types get this
+treatment, and why others don't, is [ADR-0007](docs/adr/0007-blanket-outcome-impls-for-std-types.md).)
+
 ### 4) Classify a custom outcome (all three verdicts)
 
 When an outcome has more than two meanings, `.decide(...)` sorts it directly.

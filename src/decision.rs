@@ -12,6 +12,7 @@
 
 use crate::predicate::Predicate;
 use core::convert::Infallible;
+use core::ops::ControlFlow;
 
 /// A two-way decision about a completed outcome: accept it or try again.
 ///
@@ -46,15 +47,16 @@ pub enum Verdict<R, A, O> {
 ///
 /// Implement this for a type you own to make it classify itself, so the default
 /// engine path needs no `.decide(...)` closure at the call site. Blanket impls
-/// cover the two standard outcome shapes: `Result<T, E>` (`Ok(v)` returns `v`,
-/// any `Err` retries) and `Option<T>` (`Some(v)` returns `v`, `None` retries).
+/// cover the three standard outcome shapes: `Result<T, E>` (`Ok(v)` returns `v`,
+/// any `Err` retries), `Option<T>` (`Some(v)` returns `v`, `None` retries), and
+/// `ControlFlow<B, C>` (`Break(b)` returns `b`, `Continue(_)` retries).
 ///
 /// # Orphan-rule note
 ///
-/// The blanket impls for `Result<T, E>` and `Option<T>` already cover every
-/// `Result` and `Option`, so you cannot write your own `impl Outcome` for
-/// either. For custom classification, use `.decide(closure)` or wrap the value
-/// in a newtype you own.
+/// The blanket impls for `Result<T, E>`, `Option<T>`, and `ControlFlow<B, C>`
+/// already cover every one of those types, so you cannot write your own
+/// `impl Outcome` for them. For custom classification, use `.decide(closure)`
+/// or wrap the value in a newtype you own.
 pub trait Outcome: Sized {
     /// The value delivered to the caller on `Return` (what `Ok` carries).
     type Return;
@@ -99,6 +101,26 @@ impl<T> Outcome for Option<T> {
         match self {
             Some(value) => Verdict::Return(value),
             None => Verdict::Retry(None),
+        }
+    }
+}
+
+/// Loop control as an outcome: `Break(b)` → `Return(b)`, `Continue(_)` → `Retry`.
+///
+/// [`ControlFlow`] is the standard "keep going vs stop with a value" signal, so
+/// an operation returning it drives the default engine with no `.decide`:
+/// `Continue` means "not done, retry" and `Break` carries the value out. As with
+/// `Option` there is no fatal outcome, so `Abort` is [`Infallible`] and the loop
+/// terminates only by breaking or exhausting its stop strategy
+/// (`RetryError::Exhausted { last: ControlFlow::Continue(..) }`).
+impl<B, C> Outcome for ControlFlow<B, C> {
+    type Return = B;
+    type Abort = Infallible;
+
+    fn classify(self) -> Verdict<B, Infallible, ControlFlow<B, C>> {
+        match self {
+            ControlFlow::Break(value) => Verdict::Return(value),
+            ControlFlow::Continue(_) => Verdict::Retry(self),
         }
     }
 }
@@ -316,5 +338,29 @@ mod tests {
         let classifier = DefaultClassifier;
         assert_eq!(classifier.decide(Some(1)), Verdict::Return(1));
         assert_eq!(classifier.decide(None::<i32>), Verdict::Retry(None));
+    }
+
+    #[test]
+    fn control_flow_break_classifies_as_return() {
+        let outcome: ControlFlow<&str, i32> = ControlFlow::Break("done");
+        assert_eq!(outcome.classify(), Verdict::Return("done"));
+    }
+
+    #[test]
+    fn control_flow_continue_classifies_as_retry_carrying_the_whole_outcome() {
+        let outcome: ControlFlow<&str, i32> = ControlFlow::Continue(5);
+        assert_eq!(outcome.classify(), Verdict::Retry(ControlFlow::Continue(5)));
+    }
+
+    #[test]
+    fn default_classifier_delegates_to_control_flow() {
+        let classifier = DefaultClassifier;
+        let brk: ControlFlow<&str, i32> = ControlFlow::Break("x");
+        let cont: ControlFlow<&str, i32> = ControlFlow::Continue(1);
+        assert_eq!(classifier.decide(brk), Verdict::Return("x"));
+        assert_eq!(
+            classifier.decide(cont),
+            Verdict::Retry(ControlFlow::Continue(1))
+        );
     }
 }

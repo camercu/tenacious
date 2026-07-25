@@ -302,9 +302,13 @@ pub trait Outcome { type Return; type Abort; fn classify(self) -> Verdict<..>; }
   default path). A blanket `impl<T> Outcome for Option<T>` covers the canonical
   two-state poll: `Some(v)` → `Return(v)`, `None` → `Retry` (`Abort =
   Infallible`, so exhaustion yields `RetryError::Exhausted { last: None }`). A
+  blanket `impl<B, C> Outcome for ControlFlow<B, C>` covers loop control:
+  `Break(b)` → `Return(b)`, `Continue(_)` → `Retry` (`Abort = Infallible`). A
   type you own may implement `Outcome` to classify itself with no `.decide` at
-  the call site. The orphan rule reserves `Result` and `Option` for their
-  blanket impls; use `.decide` or a newtype for custom classification.
+  the call site. The orphan rule reserves `Result`, `Option`, and `ControlFlow`
+  for their blanket impls; use `.decide` or a newtype for custom classification.
+  The rationale for which standard types receive a blanket impl (and which are
+  deferred) is [ADR-0007](adr/0007-blanket-outcome-impls-for-std-types.md).
 
 **Installing a classifier.** The classifier slot is set by, in last-wins order:
 
