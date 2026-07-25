@@ -543,13 +543,18 @@ wildcard arm. On the default / `.when` / `.until` path the outcome is
 `RetryError<E, Result<T, E>>`, and `RetryResult<T, E>` aliases
 `Result<T, RetryError<E, Result<T, E>>>`.
 
-**4.1.3** `stop_reason() -> StopReason` (`Aborted`/`Exhausted`) is available for
-all `A, O`. The remaining `Result`-shaped accessors are provided on
-`RetryError<E, Result<T, E>>`:
+**4.1.3** The following are outcome-agnostic — available for all `A, O`,
+including `Option` outcomes and self-classifying `Outcome` types:
 
-- **4.1.4** `last() -> Option<&Result<T, E>>`: `Some` for `Exhausted`, `None` for
-  `Aborted` (which stores only the bare error)
-- **4.1.5** `into_last() -> Option<Result<T, E>>`: consuming version
+- `stop_reason() -> StopReason` (`Aborted`/`Exhausted`)
+- **4.1.4** `last() -> Option<&O>`: the final whole outcome — `Some` for
+  `Exhausted`, `None` for `Aborted` (which stores only the projected abort
+  payload)
+- **4.1.5** `into_last() -> Option<O>`: consuming version
+
+The remaining accessors are `Result`-shaped, provided on
+`RetryError<E, Result<T, E>>` since they project the error out of the outcome:
+
 - **4.1.6** `last_error() -> Option<&E>`: `Some` for `Aborted`, and for
   `Exhausted` when the last outcome is `Err`; `None` otherwise
 - **4.1.7** `into_last_error() -> Option<E>`: consuming version
@@ -557,9 +562,15 @@ all `A, O`. The remaining `Result`-shaped accessors are provided on
 **4.1.9** Display: `RetryError<E, Result<T, E>>` implements `Display` when
 `E: Display`. Output is lowercase without trailing punctuation, `{variant}:
 {error}`: `retries exhausted: connection refused`, `aborted: invalid argument`.
+The `Option` shape `RetryError<Infallible, Option<T>>` also implements `Display`
+(unconditionally): its only reachable terminus is `Exhausted`, rendered
+`retries exhausted` with no outcome detail (there is no error to report).
 
 **4.1.10** It implements `std::error::Error` when `std` is active and
-`E: std::error::Error + 'static`, `T: fmt::Debug + 'static`.
+`E: std::error::Error + 'static`, `T: fmt::Debug + 'static`. The `Option` shape
+`RetryError<Infallible, Option<T>>` implements it when `std` is active and
+`T: fmt::Debug`, with no `source` (the abort arm is uninhabited and an exhausted
+`None` carries no error).
 
 ### 4.2 StopReason
 
@@ -1429,7 +1440,10 @@ both `PartialEq` and `Eq`.
 
 † `RetryError`'s `Display` (and `std::error::Error`) are provided on the
 `Result` shape `RetryError<E, Result<T, E>>`, when `E: Display` (respectively
-`E: Error + 'static`, `T: Debug + 'static`).
+`E: Error + 'static`, `T: Debug + 'static`), and on the `Option` shape
+`RetryError<Infallible, Option<T>>` (unconditionally for `Display`; for `Error`
+when `std` is active and `T: Debug`). `last`/`into_last`/`stop_reason` are
+outcome-agnostic and available for every shape.
 
 `RetryStats` and `StopReason` do not implement `Default` because there is no
 meaningful default `StopReason`.
