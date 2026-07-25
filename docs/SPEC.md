@@ -566,15 +566,17 @@ The remaining accessors are `Result`-shaped, provided on
 **4.1.9** Display: `RetryError<E, Result<T, E>>` implements `Display` when
 `E: Display`. Output is lowercase without trailing punctuation, `{variant}:
 {error}`: `retries exhausted: connection refused`, `aborted: invalid argument`.
-The `Option` shape `RetryError<Infallible, Option<T>>` also implements `Display`
-(unconditionally): its only reachable terminus is `Exhausted`, rendered
+The `Option` shape `RetryError<Infallible, Option<T>>` and the `ControlFlow`
+shape `RetryError<Infallible, ControlFlow<B, C>>` also implement `Display`
+(unconditionally): their only reachable terminus is `Exhausted`, rendered
 `retries exhausted` with no outcome detail (there is no error to report).
 
 **4.1.10** It implements `std::error::Error` when `std` is active and
 `E: std::error::Error + 'static`, `T: fmt::Debug + 'static`. The `Option` shape
-`RetryError<Infallible, Option<T>>` implements it when `std` is active and
-`T: fmt::Debug`, with no `source` (the abort arm is uninhabited and an exhausted
-`None` carries no error).
+`RetryError<Infallible, Option<T>>` (when `std` and `T: fmt::Debug`) and the
+`ControlFlow` shape `RetryError<Infallible, ControlFlow<B, C>>` (when `std` and
+`B, C: fmt::Debug`) implement it with no `source` — the abort arm is uninhabited
+and an exhausted outcome carries no error.
 
 ### 4.2 StopReason
 
@@ -1444,10 +1446,12 @@ both `PartialEq` and `Eq`.
 
 † `RetryError`'s `Display` (and `std::error::Error`) are provided on the
 `Result` shape `RetryError<E, Result<T, E>>`, when `E: Display` (respectively
-`E: Error + 'static`, `T: Debug + 'static`), and on the `Option` shape
-`RetryError<Infallible, Option<T>>` (unconditionally for `Display`; for `Error`
-when `std` is active and `T: Debug`). `last`/`into_last`/`stop_reason` are
-outcome-agnostic and available for every shape.
+`E: Error + 'static`, `T: Debug + 'static`), and on the `Infallible`-abort
+shapes `RetryError<Infallible, Option<T>>` and
+`RetryError<Infallible, ControlFlow<B, C>>` (unconditionally for `Display`; for
+`Error` when `std` is active and the outcome's payloads are `Debug`).
+`last`/`into_last`/`stop_reason` are outcome-agnostic and available for every
+shape.
 
 `RetryStats` and `StopReason` do not implement `Default` because there is no
 meaningful default `StopReason`.

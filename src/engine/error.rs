@@ -3,6 +3,7 @@
 use super::state::StopReason;
 use core::convert::Infallible;
 use core::fmt;
+use core::ops::ControlFlow;
 
 /// Error returned when the retry loop terminates without a `Return`.
 ///
@@ -150,6 +151,23 @@ impl<T> fmt::Display for RetryError<Infallible, Option<T>> {
 #[cfg(feature = "std")]
 impl<T: fmt::Debug> std::error::Error for RetryError<Infallible, Option<T>> {}
 
+/// `ControlFlow`-shaped `Display`, mirroring the `Option` shape: `Abort` is
+/// [`Infallible`], so the only reachable terminus is `Exhausted` — a loop that
+/// never broke. No value to report, so the message carries no outcome detail.
+impl<B, C> fmt::Display for RetryError<Infallible, ControlFlow<B, C>> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            RetryError::Aborted { last } => match *last {},
+            RetryError::Exhausted { .. } => f.write_str("retries exhausted"),
+        }
+    }
+}
+
+/// `ControlFlow`-shaped `Error`, with no `source` (uninhabited abort arm; an
+/// exhausted `Continue` carries no error).
+#[cfg(feature = "std")]
+impl<B: fmt::Debug, C: fmt::Debug> std::error::Error for RetryError<Infallible, ControlFlow<B, C>> {}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -217,6 +235,26 @@ mod tests {
     #[test]
     fn option_error_is_a_std_error_with_no_source() {
         let exhausted: RetryError<Infallible, Option<i32>> = RetryError::Exhausted { last: None };
+        let err: &dyn std::error::Error = &exhausted;
+        assert!(err.source().is_none());
+    }
+
+    #[cfg(feature = "alloc")]
+    #[test]
+    fn control_flow_error_display_reports_exhaustion() {
+        use alloc::string::ToString;
+        let exhausted: RetryError<Infallible, ControlFlow<i32, i32>> = RetryError::Exhausted {
+            last: ControlFlow::Continue(0),
+        };
+        assert_eq!(exhausted.to_string(), "retries exhausted");
+    }
+
+    #[cfg(feature = "std")]
+    #[test]
+    fn control_flow_error_is_a_std_error_with_no_source() {
+        let exhausted: RetryError<Infallible, ControlFlow<i32, i32>> = RetryError::Exhausted {
+            last: ControlFlow::Continue(0),
+        };
         let err: &dyn std::error::Error = &exhausted;
         assert!(err.source().is_none());
     }
