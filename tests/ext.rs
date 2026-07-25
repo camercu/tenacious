@@ -9,6 +9,7 @@
 #![cfg(feature = "std")]
 
 use core::cell::Cell;
+use core::ops::ControlFlow;
 use core::time::Duration;
 use std::cell::RefCell;
 use std::rc::Rc;
@@ -22,6 +23,9 @@ use relentless::{
 const MAX_ATTEMPTS: u32 = 3;
 const SUCCESS_VALUE: i32 = 42;
 const ERROR_VALUE: &str = "fail";
+/// A distinctive, non-unit `ControlFlow::Continue` payload used to prove it
+/// survives end to end into the exhausted error's `last`.
+const CONTINUE_PAYLOAD: i32 = 7;
 const WAIT_DURATION: Duration = Duration::from_millis(1);
 const DEFAULT_INITIAL_WAIT: Duration = Duration::from_millis(100);
 const DEFAULT_SECOND_WAIT: Duration = Duration::from_millis(200);
@@ -129,6 +133,54 @@ fn option_op_decide_override_projects_a_custom_verdict() {
         .call();
 
     assert_eq!(result, Err(RetryError::Aborted { last: "sentinel" }));
+}
+
+#[test]
+fn control_flow_outcome_retries_through_continue_then_breaks() {
+    let attempts = Rc::new(Cell::new(0_u32));
+    let attempts_ref = Rc::clone(&attempts);
+
+    // A `ControlFlow` op drives the default classifier with no `.decide`:
+    // `Continue(_)` retries, `Break(v)` delivers `v`.
+    let result = retry(move |_| {
+        attempts_ref.set(attempts_ref.get().saturating_add(1));
+        if attempts_ref.get() >= MAX_ATTEMPTS {
+            ControlFlow::Break(SUCCESS_VALUE)
+        } else {
+            ControlFlow::Continue(())
+        }
+    })
+    .stop(stop::attempts(MAX_ATTEMPTS))
+    .wait(wait::fixed(WAIT_DURATION))
+    .clock(VirtualClock::new())
+    .call();
+
+    assert_eq!(result, Ok(SUCCESS_VALUE));
+    assert_eq!(attempts.get(), MAX_ATTEMPTS);
+}
+
+#[test]
+fn control_flow_outcome_all_continue_exhausts_carrying_continue() {
+    let result = retry(|_| ControlFlow::<i32, i32>::Continue(CONTINUE_PAYLOAD))
+        .stop(stop::attempts(MAX_ATTEMPTS))
+        .wait(wait::fixed(WAIT_DURATION))
+        .clock(VirtualClock::new())
+        .call();
+
+    let err = result.unwrap_err();
+    // The non-unit `Continue` payload survives into the exhausted error.
+    assert_eq!(
+        err,
+        RetryError::Exhausted {
+            last: ControlFlow::Continue(CONTINUE_PAYLOAD)
+        }
+    );
+    // The engine-produced ControlFlow error is usable end to end (Display/last).
+    assert_eq!(err.to_string(), "retries exhausted");
+    assert_eq!(
+        err.into_last(),
+        Some(ControlFlow::Continue(CONTINUE_PAYLOAD))
+    );
 }
 
 #[allow(clippy::unnecessary_wraps)]
@@ -693,6 +745,53 @@ mod async_tests {
         // to end).
         assert_eq!(err.to_string(), "retries exhausted");
         assert_eq!(err.into_last(), Some(None));
+    }
+
+    #[test]
+    fn async_control_flow_outcome_retries_through_continue_then_breaks() {
+        let attempts = Rc::new(Cell::new(0_u32));
+        let attempts_ref = Rc::clone(&attempts);
+
+        let future = (move || {
+            attempts_ref.set(attempts_ref.get().saturating_add(1));
+            ready(if attempts_ref.get() >= MAX_ATTEMPTS {
+                ControlFlow::Break(SUCCESS_VALUE)
+            } else {
+                ControlFlow::Continue(())
+            })
+        })
+        .retry_async()
+        .stop(stop::attempts(MAX_ATTEMPTS))
+        .wait(wait::fixed(Duration::from_millis(1)))
+        .clock(ReadyClock)
+        .call();
+
+        let result = block_on(future);
+        assert_eq!(result, Ok(SUCCESS_VALUE));
+        assert_eq!(attempts.get(), MAX_ATTEMPTS);
+    }
+
+    #[test]
+    fn async_control_flow_outcome_all_continue_exhausts_carrying_continue() {
+        let future = (|| ready(ControlFlow::<i32, i32>::Continue(CONTINUE_PAYLOAD)))
+            .retry_async()
+            .stop(stop::attempts(MAX_ATTEMPTS))
+            .wait(wait::fixed(Duration::from_millis(1)))
+            .clock(ReadyClock)
+            .call();
+
+        let err = block_on(future).unwrap_err();
+        assert_eq!(
+            err,
+            RetryError::Exhausted {
+                last: ControlFlow::Continue(CONTINUE_PAYLOAD)
+            }
+        );
+        assert_eq!(err.to_string(), "retries exhausted");
+        assert_eq!(
+            err.into_last(),
+            Some(ControlFlow::Continue(CONTINUE_PAYLOAD))
+        );
     }
 }
 
