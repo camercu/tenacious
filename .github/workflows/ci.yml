@@ -41,7 +41,7 @@ jobs:
       - name: Install stable toolchain (for semver-checks)
         run: rustup toolchain install stable --profile minimal
       - uses: Swatinem/rust-cache@v2
-      - uses: taiki-e/install-action@v2
+      - uses: taiki-e/install-action@v2.85.4
         with:
           tool: just@${{ steps.tools.outputs.just }},cargo-deny@${{ steps.tools.outputs.cargo_deny }},cargo-nextest@${{ steps.tools.outputs.cargo_nextest }},typos-cli@${{ steps.tools.outputs.typos_cli }},taplo-cli@${{ steps.tools.outputs.taplo_cli }},cargo-semver-checks@${{ steps.tools.outputs.cargo_semver_checks }},cargo-llvm-cov@${{ steps.tools.outputs.cargo_llvm_cov }}
       # `just lint` runs markdownlint-cli2 (npm) and actionlint (a Go binary),
@@ -78,7 +78,7 @@ jobs:
           toolchain: stable
           components: clippy
       - uses: Swatinem/rust-cache@v2
-      - uses: taiki-e/install-action@v2
+      - uses: taiki-e/install-action@v2.85.4
         with:
           tool: just,cargo-nextest
       - name: just ci-stable
@@ -103,7 +103,7 @@ jobs:
         with:
           toolchain: ${{ steps.tools.outputs.rust }}
       - uses: Swatinem/rust-cache@v2
-      - uses: taiki-e/install-action@v2
+      - uses: taiki-e/install-action@v2.85.4
         with:
           tool: just@${{ steps.tools.outputs.just }},cargo-nextest@${{ steps.tools.outputs.cargo_nextest }},cargo-mutants@${{ steps.tools.outputs.cargo_mutants }}
       - name: just mutants-diff
