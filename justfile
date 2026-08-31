@@ -61,8 +61,16 @@ lint-markdown:
 lint-actions:
     actionlint
 
+# Supply-chain gate. Advisories, licenses and sources cover the whole
+# graph, so a vulnerable or unlicensed dev-dependency still fails CI.
+# `bans` (multiple-versions = deny) runs `--exclude-dev`: duplicate
+# versions only cost the crates we ship, while the dev graph (reqwest)
+# drags in ecosystem transitions this crate cannot unify — syn 2 -> 3,
+# windows-sys 0.52 -> 0.61 — which would otherwise redden trunk on
+# unrelated PRs.
 lint-deny:
-    cargo deny check advisories licenses bans sources
+    cargo deny check advisories licenses sources
+    cargo deny check --exclude-dev bans
 
 # ── Testing ─────────────────────────────────────────────────
 
