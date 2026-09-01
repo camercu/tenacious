@@ -1,0 +1,44 @@
+name: Audit
+
+# The advisory database is a moving target: a new RUSTSEC entry turns
+# `cargo deny check advisories` red with no change to this repository.
+# The canonical gate already runs `just lint-deny` on every push and pull
+# request, but only when someone happens to open one — so a fresh
+# advisory first surfaces as a red check on an unrelated contribution.
+# This schedule finds it the day it lands, in a job whose name says where
+# the fault is.
+#
+# Runs `just lint-deny` rather than a copy of the cargo-deny invocation:
+# the recipe stays the single definition of the supply-chain gate.
+on:
+  schedule:
+    - cron: "17 6 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+jobs:
+  supply-chain:
+    name: Supply chain
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: Parse .tool-versions
+        id: tools
+        run: |
+          while read -r name version; do
+            echo "${name//-/_}=${version}" >> "$GITHUB_OUTPUT"
+          done < <(grep -v '^#' .tool-versions | grep -v '^$')
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: ${{ steps.tools.outputs.rust }}
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: just@${{ steps.tools.outputs.just }},cargo-deny@${{ steps.tools.outputs.cargo_deny }}
+      - name: just lint-deny
+        run: just lint-deny
